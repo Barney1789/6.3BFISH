@@ -14,7 +14,7 @@ public class PenguinPlacer : MonoBehaviour
         // Check for mouse input in the editor or standalone builds
         if (Input.GetMouseButtonDown(0))
         {
-            SpawmPenguin(Input.mousePosition);
+            SpawnPenguin(Input.mousePosition);
         }
 
         // Check for touch input on mobile devices
@@ -23,11 +23,11 @@ public class PenguinPlacer : MonoBehaviour
             Touch touch = Input.GetTouch(0);
             if (touch.phase == TouchPhase.Began)
             {
-                SpawmPenguin(touch.position);
+                SpawnPenguin(touch.position);
             }
         }
     }
-    private void SpawmPenguin(Vector2 screenPosition)
+    private void SpawnPenguin(Vector2 screenPosition)
     {
         Ray ray = Camera.main.ScreenPointToRay(screenPosition);
         RaycastHit hit;

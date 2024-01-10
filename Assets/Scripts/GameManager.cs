@@ -131,29 +131,19 @@ public class GameManager : MonoBehaviourPunCallbacks
         return GetPenguinCount(player) < 4;
     }
 
-    [PunRPC]
-    void UpdateCurrentTurn(int currentPlayerIndex)
+    [PunRPC]void UpdateCurrentTurn(int currentPlayerIndex)
     {
-        currentPlayerTurnIndex = currentPlayerIndex;
-        Debug.Log("It is now player " + playerTurnOrder[currentPlayerTurnIndex] + "'s turn.");
+        // Find the actual index based on the actor number provided
+        currentPlayerTurnIndex = playerTurnOrder.FindIndex(a => a == currentPlayerIndex);
+        Debug.Log("It is now player " + currentPlayerIndex + "'s turn.");
     }
 
     // Call this method to advance the turn
     public void AdvanceTurn()
     {
-        // Make sure we increment first before modulus
         currentPlayerTurnIndex = (currentPlayerTurnIndex + 1) % playerTurnOrder.Count;
-        
-        // Check if the next player has already placed all penguins
-        while (penguinCounts.ContainsKey(playerTurnOrder[currentPlayerTurnIndex]) && 
-               penguinCounts[playerTurnOrder[currentPlayerTurnIndex]] >= 4)
-        {
-            // Skip to the next player if the current one is done
-            currentPlayerTurnIndex = (currentPlayerTurnIndex + 1) % playerTurnOrder.Count;
-        }
-        
-        // Update the turn for all clients
-        photonView.RPC("UpdateCurrentTurn", RpcTarget.AllBuffered, currentPlayerTurnIndex);
+        int nextPlayerActorNumber = playerTurnOrder[currentPlayerTurnIndex];
+        photonView.RPC("UpdateCurrentTurn", RpcTarget.AllBuffered, nextPlayerActorNumber);
     }
 
     public override void OnPlayerLeftRoom(Player otherPlayer)

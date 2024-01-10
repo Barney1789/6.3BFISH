@@ -40,23 +40,15 @@ public class Tile : MonoBehaviour,IPunObservable
             UpdateSprite(); // Update the tile's appearance based on the new fish type
         }
     }
-    void OnMouseDown()
+    public void OnMouseDown()
     {
-        // Add points to the game manager's score
-        if (GameManager.Instance != null)
-        {
-            GameManager.Instance.AddPoints(points);
-        }
-
-        // If the tile is not occupied, you can place a penguin
-        if (!isOccupied)
+        if (GameManager.Instance.IsLocalPlayerTurn() && GameManager.Instance.CanPlacePenguin(PhotonNetwork.LocalPlayer) && !isOccupied)
         {
             PlacePenguin();
-            isOccupied = true; // Mark this tile as occupied
         }
         else
         {
-            Debug.Log("This tile is already occupied.");
+            Debug.Log("It's not your turn, or you have already placed all your penguins, or the tile is occupied.");
         }
     }
 
