@@ -12,6 +12,8 @@ public class GameManager : MonoBehaviourPunCallbacks
     public int Score { get; private set; }
     private PhotonView photonView;
     private Dictionary<int, int> penguinCounts = new Dictionary<int, int>();
+    private int currentPlayerTurnIndex = 0;
+    private List<int> playerTurnOrder = new List<int>();
     void Awake()
     {
         if (Instance != null && Instance != this)
@@ -29,9 +31,17 @@ public class GameManager : MonoBehaviourPunCallbacks
     // Start is called before the first frame update
     void Start()
     {
+        // Initialize turn order based on the player list in the room
+        foreach (Player player in PhotonNetwork.PlayerList)
+        {
+            playerTurnOrder.Add(player.ActorNumber);
+             // Initialize penguin count for each player
+            penguinCounts[player.ActorNumber] = 0;
+        }// Master client starts the first turn
         if (PhotonNetwork.IsMasterClient)
         {
             ShuffleTiles();
+            photonView.RPC("UpdateCurrentTurn", RpcTarget.AllBuffered, playerTurnOrder[currentPlayerTurnIndex]);
         }
 
         if (!PhotonNetwork.IsMasterClient)
@@ -90,7 +100,14 @@ public class GameManager : MonoBehaviourPunCallbacks
     {
         int count = GetPenguinCount(player);
         penguinCounts[player.ActorNumber] = count + 1;
-    }
+
+        // After incrementing, check if the player has placed all their penguins
+        if (count + 1 >= 4)
+        {
+            // If so, advance the turn
+            AdvanceTurn();
+        }
+}
 
 
     // RPC method to synchronize tile states across all clients
@@ -107,5 +124,54 @@ public class GameManager : MonoBehaviourPunCallbacks
                 index++;
             }
         }
+    }
+
+    public bool CanPlacePenguin(Player player) //dont allow more than 4 pengüns
+    {
+        return GetPenguinCount(player) < 4;
+    }
+
+    [PunRPC]
+    void UpdateCurrentTurn(int currentPlayerIndex)
+    {
+        currentPlayerTurnIndex = currentPlayerIndex;
+        Debug.Log("It is now player " + playerTurnOrder[currentPlayerTurnIndex] + "'s turn.");
+    }
+
+    // Call this method to advance the turn
+    public void AdvanceTurn()
+    {
+        // Make sure we increment first before modulus
+        currentPlayerTurnIndex = (currentPlayerTurnIndex + 1) % playerTurnOrder.Count;
+        
+        // Check if the next player has already placed all penguins
+        while (penguinCounts.ContainsKey(playerTurnOrder[currentPlayerTurnIndex]) && 
+               penguinCounts[playerTurnOrder[currentPlayerTurnIndex]] >= 4)
+        {
+            // Skip to the next player if the current one is done
+            currentPlayerTurnIndex = (currentPlayerTurnIndex + 1) % playerTurnOrder.Count;
+        }
+        
+        // Update the turn for all clients
+        photonView.RPC("UpdateCurrentTurn", RpcTarget.AllBuffered, currentPlayerTurnIndex);
+    }
+
+    public override void OnPlayerLeftRoom(Player otherPlayer)
+    {
+        base.OnPlayerLeftRoom(otherPlayer);
+        playerTurnOrder.Remove(otherPlayer.ActorNumber); // Remove the player from the turn order
+        penguinCounts.Remove(otherPlayer.ActorNumber); // Remove their penguin count
+
+        // We need to check if the player who left was the current player and advance the turn if necessary
+        if (otherPlayer.ActorNumber == playerTurnOrder[currentPlayerTurnIndex])
+        {
+            AdvanceTurn();
+        }
+    }
+
+    // Method to check if it's the local player's turn
+    public bool IsLocalPlayerTurn()
+    {
+        return PhotonNetwork.LocalPlayer.ActorNumber == playerTurnOrder[currentPlayerTurnIndex];
     }
 }

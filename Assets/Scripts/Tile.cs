@@ -120,27 +120,45 @@ public class Tile : MonoBehaviour,IPunObservable
     // Method to place a penguin on the tile
     public void PlacePenguin()
     {
-        // Check if the current tile is not occupied and the player hasn't placed all penguins
-        if (!isOccupied && GameManager.Instance.GetPenguinCount(PhotonNetwork.LocalPlayer) < 4)
+        if (!isOccupied && GameManager.Instance.CanPlacePenguin(PhotonNetwork.LocalPlayer))
         {
-            // Call RPC to place the penguin across the network
+            // Instantiate the penguin slightly above the tile to ensure it's visible
+            Vector3 spawnPosition = new Vector3(transform.position.x, transform.position.y, transform.position.z - 0.1f);
+            GameObject penguin = PhotonNetwork.Instantiate(penguinPrefab.name, spawnPosition, Quaternion.identity);
+
+            // Set the owner and other necessary properties of the penguin here...
+            // For example: penguin.GetComponent<Penguin>().SetOwner(PhotonNetwork.LocalPlayer.ActorNumber);
+
             photonView.RPC("RPCPlacePenguin", RpcTarget.AllBuffered, PhotonNetwork.LocalPlayer.ActorNumber);
-            GameManager.Instance.IncrementPenguinCount(PhotonNetwork.LocalPlayer);
-            isOccupied = true; // Mark this tile as occupied
+            
+            isOccupied = true; // Mark the tile as occupied
+            GameManager.Instance.IncrementPenguinCount(PhotonNetwork.LocalPlayer); // Increment the count of penguins for the player
+        }
+        else if (isOccupied)
+        {
+            Debug.Log("This tile is already occupied.");
+        }
+        else
+        {
+            Debug.Log("It's not your turn or you have already placed all your penguins.");
         }
     }
     
     [PunRPC]
     void RPCPlacePenguin(int playerActorNumber)
     {
-        // Instantiate the penguin for the player who invoked the RPC
         if (!isOccupied)
         {
-            GameObject penguin = PhotonNetwork.Instantiate(penguinPrefab.name, transform.position, Quaternion.identity);
-            penguin.GetComponent<Penguin>().SetOwner(playerActorNumber);
+            GameObject penguinObject = PhotonNetwork.Instantiate(penguinPrefab.name, transform.position, Quaternion.identity);
+            Penguin penguin = penguinObject.GetComponent<Penguin>();
+            if (penguin != null)
+            {
+                penguin.SetOwner(playerActorNumber);
+            }
             isOccupied = true;
         }
     }
+
     [PunRPC]
     public void UpdateTileState(int state) {
         SetFishType((FishType)state);
