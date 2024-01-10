@@ -1,9 +1,11 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Photon.Pun;
 
-public class Tile : MonoBehaviour
+public class Tile : MonoBehaviour,IPunObservable
 {
+    
     public enum FishType { SingleFish, DoubleFish, TrioFish }
     public FishType fishType;
     private int points;
@@ -13,6 +15,9 @@ public class Tile : MonoBehaviour
     public Sprite trioFishSprite;
     public bool HasPenguin { get; private set; } = false;
     private bool isOccupied = false; 
+    public GameObject penguinPrefab; // Assign this in the inspector
+    private PhotonView photonView;
+
 
     void Start()
     {
@@ -20,24 +25,34 @@ public class Tile : MonoBehaviour
         AssignRandomFishType();
     }
 
+    void Awake()
+    {
+        photonView = GetComponent<PhotonView>();
+    }
+
+    public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info) {
+        if (stream.IsWriting) {
+            // Here, your code sends its data to other players
+            stream.SendNext((int)fishType);
+        } else {
+            // Here, your code receives data from other players
+            this.fishType = (FishType)stream.ReceiveNext();
+            UpdateSprite(); // Update the tile's appearance based on the new fish type
+        }
+    }
     void OnMouseDown()
     {
         // Add points to the game manager's score
-        GameManager.Instance.AddPoints(points);
-                // If the tile is not occupied, you can place a penguin
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.AddPoints(points);
+        }
+
+        // If the tile is not occupied, you can place a penguin
         if (!isOccupied)
         {
-            // Assuming you have a reference to the PenguinPlacer script and penguinPrefab
-            PenguinPlacer placer = FindObjectOfType<PenguinPlacer>();
-            if (placer != null && placer.penguinPrefab != null)
-            {
-                Instantiate(placer.penguinPrefab, transform.position, Quaternion.identity);
-                isOccupied = true; // Mark this tile as occupied
-            }
-            else
-            {
-                Debug.LogError("PenguinPlacer or penguinPrefab is not found or not assigned!");
-            }
+            PlacePenguin();
+            isOccupied = true; // Mark this tile as occupied
         }
         else
         {
@@ -102,9 +117,32 @@ public class Tile : MonoBehaviour
         UpdateSprite(); // Update the sprite based on the new fish type
     }
 
+    // Method to place a penguin on the tile
     public void PlacePenguin()
     {
-        HasPenguin = true;
-        // Additional logic to visually represent the penguin on the tile
+        // Check if the current tile is not occupied and the player hasn't placed all penguins
+        if (!isOccupied && GameManager.Instance.GetPenguinCount(PhotonNetwork.LocalPlayer) < 4)
+        {
+            // Call RPC to place the penguin across the network
+            photonView.RPC("RPCPlacePenguin", RpcTarget.AllBuffered, PhotonNetwork.LocalPlayer.ActorNumber);
+            GameManager.Instance.IncrementPenguinCount(PhotonNetwork.LocalPlayer);
+            isOccupied = true; // Mark this tile as occupied
+        }
+    }
+    
+    [PunRPC]
+    void RPCPlacePenguin(int playerActorNumber)
+    {
+        // Instantiate the penguin for the player who invoked the RPC
+        if (!isOccupied)
+        {
+            GameObject penguin = PhotonNetwork.Instantiate(penguinPrefab.name, transform.position, Quaternion.identity);
+            penguin.GetComponent<Penguin>().SetOwner(playerActorNumber);
+            isOccupied = true;
+        }
+    }
+    [PunRPC]
+    public void UpdateTileState(int state) {
+        SetFishType((FishType)state);
     }
 }
